@@ -1,17 +1,6 @@
 import * as motion from "motion/react-client";
 import { useEffect, useRef, useState } from "react";
 
-const appendNulls = (arr: (number | null)[]) => {
-  const ret: (number | null)[] = [];
-  arr.forEach((item, i) => {
-    if (i > 1) {
-      ret.push(null);
-    }
-    ret.push(item);
-  });
-  return ret;
-};
-
 interface AnimationProps {
   words: string[];
   duration: number;
@@ -89,7 +78,7 @@ export const Animation = ({
       text: word,
     };
   });
-  console.log(boxes);
+
   // Update line coordinates on every animation frame
   useEffect(() => {
     function updateLine() {
@@ -145,16 +134,7 @@ export const Animation = ({
         background: backgroundColor,
       }}
     >
-      <svg
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: "100vw",
-          height: "100vh",
-          pointerEvents: "none",
-        }}
-      >
+      <svg style={svgStyle}>
         {lines.map((item, i) => {
           return (
             <line
@@ -193,6 +173,15 @@ export const Animation = ({
   );
 };
 
+const svgStyle = {
+  position: "absolute" as const,
+  left: 0,
+  top: 0,
+  width: "100vw",
+  height: "100vh",
+  pointerEvents: "none" as const,
+};
+
 const boxStyle = {
   position: "absolute" as const,
   fontSize: "40px",
@@ -200,4 +189,15 @@ const boxStyle = {
   top: "50%",
   padding: "4px 12px",
   borderRadius: "4px",
+};
+
+const appendNulls = (arr: (number | null)[]) => {
+  const ret: (number | null)[] = [];
+  arr.forEach((item, i) => {
+    if (i > 1) {
+      ret.push(null);
+    }
+    ret.push(item);
+  });
+  return ret;
 };
