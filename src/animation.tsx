@@ -1,9 +1,10 @@
-import * as motion from "motion/react-client";
-import { useEffect, useRef, useState } from "react";
+import { createRef, useEffect, useRef } from "react";
+import { AnimatedBox } from "./animatedBox";
 
 interface AnimationProps {
   words: string[];
   duration: number;
+  pauseDuration: number;
   inactiveBoxColor: string;
   activeBoxColor: string;
   backgroundColor: string;
@@ -14,115 +15,101 @@ interface AnimationProps {
 export const Animation = ({
   words,
   duration,
+  pauseDuration,
   inactiveBoxColor,
   activeBoxColor,
   backgroundColor,
   lineColor,
   linePadding,
 }: AnimationProps) => {
-  const refs = useRef<HTMLDivElement[]>([]);
-  const [lines, setLines] = useState(
-    Array.from(Array(words.length - 1)).map(() => {
-      return {
-        x1: 0,
-        y1: 0,
-        x2: 0,
-        y2: 0,
-        opacity: 0,
-      };
-    })
-  );
-  const backgroundColorAnimation = [
-    inactiveBoxColor,
-    activeBoxColor,
-    activeBoxColor,
-    inactiveBoxColor,
-  ];
+  const refs = useRef<React.RefObject<HTMLDivElement>[]>([]);
+  if (refs.current.length !== words.length) {
+    // Initialize refs array only once
+    refs.current = Array(words.length)
+      .fill(null)
+      .map(() => createRef<HTMLDivElement>());
+  }
+
+  const lineRefs = useRef<React.RefObject<SVGLineElement>[]>([]);
+  if (lineRefs.current.length !== words.length - 1) {
+    // Initialize refs array only once
+    lineRefs.current = Array(words.length - 1)
+      .fill(null)
+      .map(() => createRef<SVGLineElement>());
+  }
 
   const config = [
     {
-      x: [0, -100, -200, -280, -300],
-      y: [0, null, -100, -120, -140],
+      startPosition: { x: 0, y: 0 },
+      toPosition: { x: -100, y: 0 },
+      nextPositions: [
+        { x: -200, y: -100 },
+        { x: -280, y: -120 },
+        { x: -300, y: -140 },
+      ].slice(0, words.length - 1),
+      word: words[0],
     },
     {
-      x: [null, -20, 200, 250, 330],
-      y: [null, null, -70, -100, -140],
+      startPosition: { x: -20, y: 0 },
+      toPosition: { x: 200, y: -70 },
+      nextPositions: [
+        { x: 250, y: -100 },
+        { x: 330, y: -140 },
+      ].slice(0, words.length - 2),
+      word: words[1],
     },
     {
-      x: [null, null, -50, -100, -200],
-      y: [null, null, null, 50, 40],
+      startPosition: { x: -50, y: 0 },
+      toPosition: { x: -100, y: 50 },
+      nextPositions: [{ x: -200, y: 40 }].slice(0, words.length - 3),
+      word: words[2],
     },
     {
-      x: [null, null, null, 170, 150],
-      y: [null, null, null, 80, 120],
+      startPosition: { x: 180, y: 80 },
+      toPosition: { x: 150, y: 120 },
+      nextPositions: [],
+      word: words[3],
     },
   ];
-  const boxes = words.map((word, index) => {
-    const xArray = config[index].x.slice(0, words.length + 1);
-    const yArray = config[index].y.slice(0, words.length + 1);
-    return {
-      path: {
-        x: appendNulls(xArray),
-        y: appendNulls(yArray),
-        opacity: Array.from(Array(words.length * 2)).map((_x, i) =>
-          i === index * 2 + 1 ? 1 : null
-        ),
-        backgroundColor: [
-          ...Array.from(Array(index * 2)),
-          ...backgroundColorAnimation,
-          ...Array.from(Array((words.length - index) * 2)),
-        ]
-          .slice(0, -4)
-          .map((x) => (!x ? null : x)),
-      },
-      text: word,
-    };
-  });
 
-  // Update line coordinates on every animation frame
   useEffect(() => {
-    function updateLine() {
-      const updateLine2 = (
-        refA: HTMLDivElement,
-        refB: HTMLDivElement,
-        lineIndex: number
-      ) => {
+    let frameId: number;
+    const updateLine = () => {
+      lineRefs.current.map((item, i) => {
+        const refA = refs.current[i]?.current;
+        const refB = refs.current[i + 1]?.current;
+        if (!(refA instanceof Element) || !(refB instanceof Element)) {
+          return item;
+        }
+        const line = item.current;
+        const opacityA = window
+          .getComputedStyle(refA)
+          .getPropertyValue("opacity");
         const opacityB = window
           .getComputedStyle(refB)
           .getPropertyValue("opacity");
-
-        const opacityA = window
-          .getComputedStyle(refB)
-          .getPropertyValue("opacity");
-
         const rectA = refA.getBoundingClientRect();
         const rectB = refB.getBoundingClientRect();
         const isBothVisible =
           parseFloat(opacityA) > 0 && parseFloat(opacityB) > 0;
 
-        setLines((prevValue) => {
-          return prevValue.map((item, prevIndex) => {
-            return prevIndex === lineIndex
-              ? {
-                  x1: rectA.left + rectA.width + linePadding,
-                  y1: rectA.top + rectA.height + linePadding,
-                  x2: rectB.left - linePadding,
-                  y2: rectB.top - linePadding,
-                  opacity: isBothVisible ? 1 : 0,
-                }
-              : item;
-          });
-        });
-      };
-
-      lines.forEach((_l, i) =>
-        updateLine2(refs.current[i], refs.current[i + 1], i)
-      );
-
-      requestAnimationFrame(updateLine);
-    }
+        const x1 = rectA.left + rectA.width + linePadding;
+        const y1 = rectA.top + rectA.height + linePadding;
+        const x2 = rectB.left - linePadding;
+        const y2 = rectB.top - linePadding;
+        const opacity = isBothVisible ? 1 : 0;
+        line.setAttribute("x1", x1.toString());
+        line.setAttribute("y1", y1.toString());
+        line.setAttribute("x2", x2.toString());
+        line.setAttribute("y2", y2.toString());
+        line.setAttribute("stroke", lineColor);
+        line.setAttribute("stroke-width", "2");
+        line.setAttribute("opacity", opacity.toString());
+      });
+      frameId = requestAnimationFrame(updateLine);
+    };
     updateLine();
-    // Cleanup not strictly needed since animation runs for app lifetime
+    return () => cancelAnimationFrame(frameId);
   }, []);
 
   return (
@@ -135,38 +122,25 @@ export const Animation = ({
       }}
     >
       <svg style={svgStyle}>
-        {lines.map((item, i) => {
-          return (
-            <line
-              key={i}
-              x1={item.x1}
-              y1={item.y1}
-              x2={item.x2}
-              y2={item.y2}
-              opacity={item.opacity}
-              stroke={lineColor}
-              strokeWidth={2}
-            />
-          );
+        {lineRefs.current.map((_line, i) => {
+          return <line key={i} ref={lineRefs.current[i]} />;
         })}
       </svg>
-      {boxes.map((x) => {
+      {refs.current.map((ref, i) => {
         return (
-          <motion.div
-            key={x.text}
-            ref={(el) => {
-              refs.current.push(el as HTMLDivElement);
-            }}
-            animate={x.path}
-            initial={{ opacity: 0 }}
-            transition={{
-              duration: duration,
-              ease: "linear",
-            }}
-            style={boxStyle}
-          >
-            {x.text}
-          </motion.div>
+          <AnimatedBox
+            key={config[i].word}
+            boxRef={ref}
+            startPosition={config[i].startPosition}
+            toPosition={config[i].toPosition}
+            nextPositions={config[i].nextPositions}
+            inactiveBoxColor={inactiveBoxColor}
+            activeBoxColor={activeBoxColor}
+            delay={(duration + pauseDuration) * i}
+            pauseDuration={pauseDuration}
+            duration={duration}
+            text={config[i].word}
+          />
         );
       })}
     </div>
@@ -180,24 +154,4 @@ const svgStyle = {
   width: "100vw",
   height: "100vh",
   pointerEvents: "none" as const,
-};
-
-const boxStyle = {
-  position: "absolute" as const,
-  fontSize: "40px",
-  left: "50%",
-  top: "50%",
-  padding: "4px 12px",
-  borderRadius: "4px",
-};
-
-const appendNulls = (arr: (number | null)[]) => {
-  const ret: (number | null)[] = [];
-  arr.forEach((item, i) => {
-    if (i > 1) {
-      ret.push(null);
-    }
-    ret.push(item);
-  });
-  return ret;
 };

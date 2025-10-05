@@ -5,7 +5,8 @@ export const App = () => {
     <Animation
       // supports 2-4 words
       words={["Bra", "folk", "smarte", "løsninger"]}
-      duration={2.2}
+      duration={0.5} // per item
+      pauseDuration={0.25} // pause between each item appears
       inactiveBoxColor="#fff"
       activeBoxColor="#ffd24c"
       backgroundColor="#97d2ec"
